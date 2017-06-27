@@ -9,7 +9,7 @@ The performance of the proxy is not very high. If you have many gunbot pairs, yo
 
 ## Installation:
 
-Install dnsmasq / dig (dnsutils in arch linux) / python 3 / pycurl (python-pycurl in arch, or use pip install pycurl on other distros)
+Install dnsmasq / dig (dnsutils in arch linux) / python 3 / pycurl (python-pycurl in arch, or use pip install pycurl on other distros) / pyyaml (python-yaml in arch or pip install pyyaml other distros)
 
 Edit the following files:
 
@@ -38,7 +38,7 @@ Enable / start dnsmasq:
 
 Create a new poloniex api key: https://poloniex.com/apiKeys
 
-Edit polproxy.py, the settings are at the top.
+Copy settings.yml.example to settings.yml, edit settings.yml
 
 Since the proxy runs on port 443, you need to either allow python to bind to port 443 ( `sudo setcap CAP_NET_BIND_SERVICE=+eip $(readlink -f $(which python))` ) or run polproxy.py as root.
 

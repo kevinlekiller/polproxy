@@ -1,0 +1,12 @@
+# Your poloniex.com api key and secret.
+api_key: 
+api_secret: 
+# Which address and port to run the proxy server on.
+bind_address: 127.0.0.1
+bind_port: 443
+# How long to cache API data fetched from poloniex.
+cache_time: 20
+# Location of SSL cert / key for proxy server.
+ssl_cert: polproxy.crt.pem
+ssl_key:  polproxy.key.pem
+

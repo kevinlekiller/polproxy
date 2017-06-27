@@ -1,43 +1,48 @@
 #!/usr/bin/env python
 # https://stackoverflow.com/questions/23828264/how-to-make-a-simple-multithreaded-socket-server-in-python-that-remembers-client/23828265#23828265
-import hmac, hashlib, pycurl, re, socket, ssl, subprocess, sys, threading, time
+import hmac, hashlib, os.path, pycurl, re, socket, ssl, subprocess, sys, threading, time, yaml
 from io import BytesIO
 from urllib.parse import urlencode
 
-# Put a new poloniex key / secret here.
-API_KEY = ""
-API_SECRET = ""
-
-SSL_CERT = "polproxy.crt.pem"
-SSL_KEY = "polproxy.key.pem"
-PROXY_ADDRESS="127.0.0.1"
-PROXY_PORT=443
-CACHE_TIME=20
-
 class ThreadedServer(object):
-    def __init__(self, host, port, akey, asec, cacheTime, scert, skey):
+    def __init__(self):
+        self.config = {"api_key": "", "api_secret": "", "bind_address": "", "bind_port": "", "cache_time": "", "ssl_cert": "", "ssl_key": ""}
+        self.getConfig()
         self.locked = False
-        self.cache = {}
-        self.cache["pr"] = {}
-        self.cache["pb"] = {}
-        self.err = "HTTP/1.1 400 Bad Request\n"
+        self.cache = {"pr": {}, "pb": {}}
+        self.err = "HTTP/1.1 400 Bad Request\r\n"
         self.polo_ip = "104.20.12.48"
-        self.polo_ip_time = 0
-        self.nonce = 0
+        self.polo_ip_time = self.nonce = 0
         self.nonce_inc = 1
-        self.host = host
-        self.port = port
-        self.akey = akey
-        self.asec = asec.encode("utf-8")
-        self.cacheTime = cacheTime
-        self.scert = scert
-        self.skey = skey
         self.cacheable = ["returnBalances", "returnDepositAddresses", "returnFeeInfo", "returnTradableBalances", "returnMarginAccountSummary", "returnOpenLoanOffers", "returnActiveLoans"]
+        self.startSocket()
+
+    def startSocket(self):
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.settimeout(None)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.sock = ssl.wrap_socket(sock, certfile=self.scert, keyfile=self.skey)
-        self.sock.bind((self.host, self.port))
+        self.sock = ssl.wrap_socket(sock, certfile=self.config["ssl_cert"], keyfile=self.config["ssl_key"])
+        self.sock.bind((self.config["bind_address"], self.config["bind_port"]))
+
+
+    def getConfig(self):
+        if not os.path.exists("settings.yml"):
+            print("Error: You must copy settings.yml.example to settings.yml and edit it.")
+            sys.exit(1)
+        with open("settings.yml", "r") as handle:
+            config = yaml.load(handle)
+        for key in self.config:
+            try:
+                config[key]
+            except KeyError:
+                print("Error: Invalid settings.yml file, try recopying settings.yaml.example. (the " + key + " line is missing)")
+                sys.exit(1)
+            else:
+                if not config[key]:
+                    print("Error: The setting " + key + " in settings.yml must not be empty.")
+                    sys.exit(1)
+            self.config[key] = config[key]
+        self.config["api_secret"] = self.config["api_secret"].encode("utf-8")
 
 
     def getPoloIp(self):
@@ -76,10 +81,10 @@ class ThreadedServer(object):
         if data:
             data = data.strip()
             if data.startswith("GET"):
-                if not self.process_get(data, client):
+                if not self.processGet(data, client):
                     return False
             elif data.startswith("POST"):
-                self.process_post(data, client)
+                self.processPost(data, client)
             else:
                 client.sendall(self.err.encode("utf-8"))
             client.close()
@@ -89,23 +94,23 @@ class ThreadedServer(object):
             return False
 
 
-    def process_post(self, data, client):
+    def processPost(self, data, client):
         post = data.split("\n")
         for line in post:
             if "command=" in line:
                 post = line
                 break
-        command = self.get_command(post)
+        command = self.getCommand(post)
         cacheable = cached = False
         if command in self.cacheable:
             cacheable = True
-            if self.check_cache(command, public=False):
+            if self.checkCache(command, public=False):
                 client.sendall(self.cache["pr"][command]["d"].encode("utf-8"))
                 print(str(time.time()) + ": POST Command (Cached) : " + command)
                 cached = True
         if not cached:
             print(str(time.time()) + ": POST Command : " + command)
-            self.lock_thread()
+            self.lockThread()
             self.locked = True
             self.nonce = int(self.nonce) + self.nonce_inc
             if "nonce=" in post:
@@ -113,10 +118,10 @@ class ThreadedServer(object):
             else:
                 post = post + "&nonce=" + str(self.nonce)
             headers = [
-                "Key: " + self.akey,
-                "Sign: " + hmac.new(self.asec, post.encode("utf-8"), hashlib.sha512).hexdigest()
+                "Key: " + self.config["api_key"],
+                "Sign: " + hmac.new(self.config["api_secret"], post.encode("utf-8"), hashlib.sha512).hexdigest()
             ]
-            buff = re.sub("Transfer-Encoding: chunked[\r\n]*", "" , self.curl_request("https://" + self.polo_ip + "/tradingApi", headers, post))
+            buff = re.sub("Transfer-Encoding: chunked[\r\n]*", "" , self.curlRequest("https://" + self.polo_ip + "/tradingApi", headers, post))
             if buff == "":
                 buff = self.err
             elif "{\"error\":\"Nonce" in buff:
@@ -131,17 +136,17 @@ class ThreadedServer(object):
             #print("Sent private API request " + command)
 
 
-    def process_get(self, data, client):
-        command = self.get_command(data)
+    def processGet(self, data, client):
+        command = self.getCommand(data)
         if command == False:
             print("ERROR: Wrong public API command sent")
             client.sendall(self.err.encode("utf-8"))
             client.close()
             return False
         request = data.split(" ")[1]
-        if not self.check_cache(command):
+        if not self.checkCache(command):
             # The replace is so we can just send all the data in 1 shot to gunbot.
-            self.cache["pb"][command] = {"d": re.sub("Transfer-Encoding: chunked[\r\n]*", "" ,self.curl_request("https://" + self.polo_ip + request)), "t": time.time()}
+            self.cache["pb"][command] = {"d": re.sub("Transfer-Encoding: chunked[\r\n]*", "" ,self.curlRequest("https://" + self.polo_ip + request)), "t": time.time()}
             print(str(time.time()) + ": GET Command : " + command)
         else:
             print(str(time.time()) + ": GET Command (Cached) : " + command)
@@ -153,13 +158,13 @@ class ThreadedServer(object):
         return True
 
 
-    def lock_thread(self):
+    def lockThread(self):
         # Shitty way to lock the thread, works for now
         while self.locked:
             time.sleep(0.002)
 
 
-    def check_cache(self, command, public=True):
+    def checkCache(self, command, public=True):
         ctime = 0
         try:
             if public:
@@ -171,7 +176,7 @@ class ThreadedServer(object):
                 #print("Fetched data from API for " + command)
             return False
         else:
-            if ctime > (time.time() - self.cacheTime):
+            if ctime > (time.time() - self.config["cache_time"]):
                 #if public == True:
                     #print("Updated stale API cache for " + command)
                 return False
@@ -180,7 +185,7 @@ class ThreadedServer(object):
                 return True
 
 
-    def get_command(self, buffer):
+    def getCommand(self, buffer):
         command = re.search("command=([a-zA-Z]+)", buffer)
         try:
             command
@@ -190,7 +195,7 @@ class ThreadedServer(object):
             return command.group(1)
 
 
-    def curl_request(self, url, headers = False, post = False, returnHeaders=True):
+    def curlRequest(self, url, headers = False, post = False, returnHeaders=True):
         ch = pycurl.Curl()
         ch.setopt(pycurl.URL, url)
         hdrs = [
@@ -222,4 +227,4 @@ class ThreadedServer(object):
 
 
 if __name__ == "__main__":
-    ThreadedServer(PROXY_ADDRESS,PROXY_PORT,API_KEY,API_SECRET,CACHE_TIME,SSL_CERT,SSL_KEY).listen()
+    ThreadedServer().listen()
