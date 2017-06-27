@@ -1,5 +1,5 @@
 # polproxy
-This is a proxy server for poloniex / gunbot for Linux (untested on Windows / BSD).
+This is a proxy server for poloniex / gunbot for Linux (untested on Windows / BSD). The goal is to prevent 422 errors.
 
 ## Notes:
 
