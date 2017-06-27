@@ -5,7 +5,7 @@ This is a proxy server for poloniex / gunbot for Linux (untested on Windows / BS
 
 Note, use this on a server where only gunbot will run, like a virtual machine or a VPS, this proxy will not forward non API requests to poloniex.com.
 
-The performance of the proxy is not very high. If you have many gunbot pairs, you will need to set gunbot's `BOT_SLEEP_DELAY` pretty high or the connections to the proxy will build up and timeout, you can monitor how many threads are waiting with with `htop -p $(pgrep -f polproxy.py)`, if you have more than roughly 20 threads waiting, then increase the `BOT_SLEEP_DELAY`. For 30 pairs, I run at 120 seconds `BOT_SLEEP_DELAY`.
+The performance of the proxy is not very high. If you have many gunbot pairs, you will need to set gunbot's `BOT_SLEEP_DELAY` pretty high or the connections to the proxy will build up and timeout, you can monitor how many threads are waiting with `htop -p $(pgrep -f polproxy.py)`, if you have more than roughly 20 threads waiting, then increase the `BOT_SLEEP_DELAY`. For 30 pairs, I run at 120 seconds `BOT_SLEEP_DELAY`.
 
 ## Installation:
 
