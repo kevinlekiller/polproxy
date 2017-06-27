@@ -14,6 +14,8 @@ class ThreadedServer(object):
         self.polo_ip_time = self.nonce = 0
         self.nonce_inc = 1
         self.cacheable = ["returnBalances", "returnDepositAddresses", "returnFeeInfo", "returnTradableBalances", "returnMarginAccountSummary", "returnOpenLoanOffers", "returnActiveLoans"]
+        self.getPoloIp()
+        self.getNonceStart()
         self.lock = threading.Lock()
         self.startSocket()
 
@@ -23,6 +25,27 @@ class ThreadedServer(object):
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.sock = ssl.wrap_socket(sock, certfile=self.config["ssl_cert"], keyfile=self.config["ssl_key"])
         self.sock.bind((self.config["bind_address"], self.config["bind_port"]))
+
+
+    def getPostHeaders(self, post):
+        return [
+            "Key: " + self.config["api_key"],
+            "Sign: " + hmac.new(self.config["api_secret"], post.encode("utf-8"), hashlib.sha512).hexdigest()
+        ]
+
+
+    def getNonceStart(self):
+        post = "command=returnFeeInfo&nonce=1"
+        headers = self.getPostHeaders(post)
+        resp = False
+        while not resp:
+            resp = self.curlRequest("https://" + self.polo_ip + "/tradingApi", self.getPostHeaders(post), post)
+            if not resp or "\"error\":\"Nonce" not in resp:
+                print("Failed to retrieve nonce from poloniex, retrying in 30 seconds.")
+                time.sleep(30)
+        self.nonce = re.search("greater than (\d+)", resp)
+        self.nonce = self.nonce.group(1)
+        print("Got nonce " + str(self.nonce) + " from poloniex.")
 
 
     def getConfig(self):
@@ -126,9 +149,6 @@ class ThreadedServer(object):
                 if buff == "":
                     buff = self.err
                 elif "{\"error\":" in buff:
-                    if "Nonce" in buff:
-                        self.nonce = re.search("greater than (\d+)", buff)
-                        self.nonce = self.nonce.group(1)
                     print("Poloniex API error: " + buff)
                 client.sendall(buff.encode("utf-8"))
             if cacheable:
