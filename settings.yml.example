@@ -6,6 +6,10 @@ bind_address: 127.0.0.1
 bind_port: 443
 # How long to cache API data fetched from poloniex.
 cache_time: 20
+# How many seconds to sleep, (0.15 limits to about 6 api requests per second, since it's
+# 0.15 + latency to talk with poloniex server + cpu time to work on thread, you can lower
+# or raise this based on your computer's speed).
+api_throttle: 0.15
 # Location of SSL cert / key for proxy server.
 ssl_cert: polproxy.crt.pem
 ssl_key:  polproxy.key.pem

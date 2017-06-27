@@ -6,15 +6,15 @@ from urllib.parse import urlencode
 
 class ThreadedServer(object):
     def __init__(self):
-        self.config = {"api_key": "", "api_secret": "", "bind_address": "", "bind_port": "", "cache_time": "", "ssl_cert": "", "ssl_key": ""}
+        self.config = {"api_key": "", "api_secret": "", "bind_address": "", "bind_port": "", "cache_time": "", "ssl_cert": "", "ssl_key": "", "api_throttle": ""}
         self.getConfig()
-        self.locked = False
         self.cache = {"pr": {}, "pb": {}}
         self.err = "HTTP/1.1 400 Bad Request\r\n"
         self.polo_ip = "104.20.12.48"
         self.polo_ip_time = self.nonce = 0
         self.nonce_inc = 1
         self.cacheable = ["returnBalances", "returnDepositAddresses", "returnFeeInfo", "returnTradableBalances", "returnMarginAccountSummary", "returnOpenLoanOffers", "returnActiveLoans"]
+        self.lock = threading.Lock()
         self.startSocket()
 
     def startSocket(self):
@@ -87,6 +87,8 @@ class ThreadedServer(object):
                 self.processPost(data, client)
             else:
                 client.sendall(self.err.encode("utf-8"))
+            with self.lock:
+                time.sleep(self.config["api_throttle"])
             client.close()
             return
         else:
@@ -110,25 +112,25 @@ class ThreadedServer(object):
                 cached = True
         if not cached:
             print(str(time.time()) + ": POST Command : " + command)
-            self.lockThread()
-            self.locked = True
-            self.nonce = int(self.nonce) + self.nonce_inc
-            if "nonce=" in post:
-                post = re.sub("nonce=\d+", "nonce=" + str(self.nonce), post)
-            else:
-                post = post + "&nonce=" + str(self.nonce)
-            headers = [
-                "Key: " + self.config["api_key"],
-                "Sign: " + hmac.new(self.config["api_secret"], post.encode("utf-8"), hashlib.sha512).hexdigest()
-            ]
-            buff = re.sub("Transfer-Encoding: chunked[\r\n]*", "" , self.curlRequest("https://" + self.polo_ip + "/tradingApi", headers, post))
-            if buff == "":
-                buff = self.err
-            elif "{\"error\":\"Nonce" in buff:
-                self.nonce = re.search("greater than (\d+)", buff)
-                self.nonce = self.nonce.group(1)
-            client.sendall(buff.encode("utf-8"))
-            self.locked = False
+            with self.lock:
+                self.nonce = int(self.nonce) + self.nonce_inc
+                if "nonce=" in post:
+                    post = re.sub("nonce=\d+", "nonce=" + str(self.nonce), post)
+                else:
+                    post = post + "&nonce=" + str(self.nonce)
+                headers = [
+                    "Key: " + self.config["api_key"],
+                    "Sign: " + hmac.new(self.config["api_secret"], post.encode("utf-8"), hashlib.sha512).hexdigest()
+                ]
+                buff = re.sub("Transfer-Encoding: chunked[\r\n]*", "" , self.curlRequest("https://" + self.polo_ip + "/tradingApi", headers, post))
+                if buff == "":
+                    buff = self.err
+                elif "{\"error\":" in buff:
+                    if "Nonce" in buff:
+                        self.nonce = re.search("greater than (\d+)", buff)
+                        self.nonce = self.nonce.group(1)
+                    print("Poloniex API error: " + buff)
+                client.sendall(buff.encode("utf-8"))
             if cacheable:
                 self.cache["pr"][command]["d"] = buff
                 self.cache["pr"][command]["t"] = time.time()
@@ -156,12 +158,6 @@ class ThreadedServer(object):
         client.sendall(self.cache["pb"][command]["d"].encode("utf-8"))
         #print("Sent " + command + " public API request.")
         return True
-
-
-    def lockThread(self):
-        # Shitty way to lock the thread, works for now
-        while self.locked:
-            time.sleep(0.002)
 
 
     def checkCache(self, command, public=True):
