@@ -11,13 +11,14 @@ class ThreadedServer(object):
         self.cache = {"pr": {}, "pb": {}}
         self.err = "HTTP/1.1 400 Bad Request\r\n"
         self.polo_ip = "104.20.12.48"
-        self.polo_ip_time = self.nonce = 0
+        self.polo_ip_time = 0
         self.nonce_inc = 1
         self.cacheable = ["returnBalances", "returnDepositAddresses", "returnFeeInfo", "returnTradableBalances", "returnMarginAccountSummary", "returnOpenLoanOffers", "returnActiveLoans"]
         self.getPoloIp()
         self.getNonceStart()
         self.lock = threading.Lock()
         self.startSocket()
+
 
     def startSocket(self):
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -141,12 +142,8 @@ class ThreadedServer(object):
                     post = re.sub("nonce=\d+", "nonce=" + str(self.nonce), post)
                 else:
                     post = post + "&nonce=" + str(self.nonce)
-                headers = [
-                    "Key: " + self.config["api_key"],
-                    "Sign: " + hmac.new(self.config["api_secret"], post.encode("utf-8"), hashlib.sha512).hexdigest()
-                ]
-                buff = re.sub("Transfer-Encoding: chunked[\r\n]*", "" , self.curlRequest("https://" + self.polo_ip + "/tradingApi", headers, post))
-                if buff == "":
+                buff = re.sub("Transfer-Encoding: chunked[\r\n]*", "" , self.curlRequest("https://" + self.polo_ip + "/tradingApi", self.getPostHeaders(post), post))
+                if not buff:
                     buff = self.err
                 elif "{\"error\":" in buff:
                     print("Poloniex API error: " + buff)
