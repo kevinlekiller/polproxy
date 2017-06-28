@@ -134,7 +134,7 @@ class ThreadedServer(object):
                 client.sendall(self.cache["pr"][command]["d"].encode("utf-8"))
                 print(str(time.time()) + ": POST Command (Cached) : " + command)
                 cached = True
-             else:
+            else:
                 self.cache["pr"][command] = {}
         if not cached:
             print(str(time.time()) + ": POST Command : " + command)
