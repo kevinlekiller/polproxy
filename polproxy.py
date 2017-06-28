@@ -45,7 +45,7 @@ class ThreadedServer(object):
                 print("Failed to retrieve nonce from poloniex, retrying in 30 seconds.")
                 time.sleep(30)
         self.nonce = re.search("greater than (\d+)", resp)
-        self.nonce = self.nonce.group(1)
+        self.nonce = int(self.nonce.group(1)) + 1
         print("Got nonce " + str(self.nonce) + " from poloniex.")
 
 
@@ -134,6 +134,8 @@ class ThreadedServer(object):
                 client.sendall(self.cache["pr"][command]["d"].encode("utf-8"))
                 print(str(time.time()) + ": POST Command (Cached) : " + command)
                 cached = True
+             else:
+                self.cache["pr"][command] = {}
         if not cached:
             print(str(time.time()) + ": POST Command : " + command)
             with self.lock:
@@ -143,11 +145,11 @@ class ThreadedServer(object):
                 else:
                     post = post + "&nonce=" + str(self.nonce)
                 buff = re.sub("Transfer-Encoding: chunked[\r\n]*", "" , self.curlRequest("https://" + self.polo_ip + "/tradingApi", self.getPostHeaders(post), post))
-                if not buff:
-                    buff = self.err
-                elif "{\"error\":" in buff:
-                    print("Poloniex API error: " + buff)
-                client.sendall(buff.encode("utf-8"))
+            if not buff:
+                buff = self.err
+            elif "{\"error\":" in buff:
+                print("Poloniex API error: " + buff)
+            client.sendall(buff.encode("utf-8"))
             if cacheable:
                 self.cache["pr"][command]["d"] = buff
                 self.cache["pr"][command]["t"] = time.time()
@@ -225,8 +227,8 @@ class ThreadedServer(object):
         ch.setopt(pycurl.HTTPHEADER, hdrs)
         ch.setopt(pycurl.SSL_VERIFYHOST, 0)
         ch.setopt(pycurl.FOLLOWLOCATION, True)
-        ch.setopt(pycurl.CONNECTTIMEOUT, 10)
-        ch.setopt(pycurl.TIMEOUT, 10)
+        ch.setopt(pycurl.CONNECTTIMEOUT, 5)
+        ch.setopt(pycurl.TIMEOUT, 5)
         ret = BytesIO()
         if returnHeaders:
             ch.setopt(pycurl.HEADERFUNCTION, ret.write)
