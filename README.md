@@ -56,10 +56,7 @@ See the LICENSE file.
 
 If you would like to send me a donation (very appreciated), here are my cryptocurrency addresses:
 
-BTC: 16Ur2djxEMyHUkg4aT1GEYhLXwnfFRBhNd
-
-ETH: 0x1fe89717f971445b8cf5637f05e2b85c35cc2c70
-
-LTC: LcMuFL1QB8jFVcQaTJZA741DZd7CrWz8BR
-
-XMR: 485KKqeDHk9QcsCw5rpL9L6DymkV3Ph69jGxogSzX1QAccFxqCqJ1UtDXac2SA3taNB9DJSWqCDNcTdAkuhnaExfDd6Acmm
+Bitcoin: 38XZrqgXc9sE2YnWtfXz8QFf9XnDND3RKm  
+Ethereum: 0x36374ea9cC3B33BCC9267be9e18a81AABAf98bEf  
+Litecoin: MM49Vu3jQ1S8b8H9FrCJ1wgQHKSBidwtWZ  
+Zcash: t1YUxEy9R2j9FW3ci3HWyKZEVUvdH5nyDAW
